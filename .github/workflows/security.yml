@@ -53,7 +53,7 @@ jobs:
     # fresh tree, no history, overlays and git-ignored paths excluded by structure, and a deny
     # gate that refuses to write if anything names an organisation. The mirror is generated and
     # never hand-edited; that is what keeps two copies honest.
-    uses: deedeerich/secure-cicd-kit-public/.github/workflows/reusable-security.yml@v0.1.0
+    uses: deedeerich/secure-cicd-kit-public/.github/workflows/reusable-security.yml@v0.1.1
     with:
       language: python,javascript
       enable_iac: true
