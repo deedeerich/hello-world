@@ -57,7 +57,6 @@ jobs:
     with:
       language: python,javascript
       iac_mode: auto
-      iac_mode: terraform
       # Deliberately NOT the default. This fixture exists to make dataflow findings appear, and
       # security-extended trades precision for recall -- which is the right trade when the
       # question is "does taint tracking run at all", not "is this backlog triageable".
