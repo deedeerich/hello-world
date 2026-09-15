@@ -64,3 +64,18 @@ covering them:
 single post-run "effective" state would have recorded two controls as working on the strength of
 them having run — and a green job is the most persuasive possible evidence for a control that did
 nothing.
+
+## Query-matched rows added after the first run returned CodeQL = 0
+
+A sink with no source is not a dataflow test. The original JSX defects took `query` as a React
+prop, which no taint engine treats as attacker-controlled, so CodeQL had nothing to track and
+reported zero **correctly**. Semgrep flagged them on pattern alone, which is why the two disagreed.
+
+| # | file | source → sink | query documented to catch it |
+|---|---|---|---|
+| 14 | `web/SearchResults.jsx` | `window.location.search` → `innerHTML` | `js/xss` |
+| 15 | `web/SearchResults.jsx` | `document.location.hash` → `window.location` | `js/client-side-unvalidated-url-redirection` |
+| 16 | `web/SearchResults.jsx` | `location.search` → `dangerouslySetInnerHTML` | `js/xss` |
+
+**If CodeQL still returns zero on rows 14–16, the finding is about CodeQL or its configuration.**
+Until then it was about the fixture, and recording it as a scanner failure would have been wrong.

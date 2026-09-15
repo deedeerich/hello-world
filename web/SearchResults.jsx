@@ -47,3 +47,46 @@ export function UnsafeRef({ query }) {
   }, [query]);
   return <div ref={el} />;
 }
+
+/* ── WHY THE FIRST VERSION OF THIS FILE PROVED NOTHING ────────────────────────────────
+ *
+ * Everything above takes `query` as a PROP. Semgrep flagged those on pattern alone, and CodeQL
+ * reported ZERO results over all of them -- correctly. Taint tracking needs a SOURCE it is
+ * documented to recognise as attacker-controlled, and a React prop is not one: nothing in this
+ * file told the engine where `query` came from, so there was no flow to track. A sink with no
+ * source is not a dataflow test, it is a pattern test with extra steps.
+ *
+ * That is the difference between an acceptance test and a vibe. `EXPECTED_FINDINGS.md` must map a
+ * planted defect to a QUERY DOCUMENTED TO DETECT IT -- here `js/xss` and `js/client-side-unvalidated-
+ * url-redirection`, whose source set includes `window.location` and `document.URL`.
+ *
+ * So these read from a real source. If CodeQL still reports zero on THESE, the finding is about
+ * CodeQL or its configuration rather than about the fixture.
+ */
+
+export function TaintedFromLocation() {
+  // SOURCE: window.location.search is in CodeQL's documented remote-flow source set.
+  // SINK:   innerHTML. Source and sink in separate statements, which is the whole point.
+  const params = new URLSearchParams(window.location.search);
+  const term = params.get('q');
+  const el = React.useRef(null);
+  React.useEffect(() => {
+    if (el.current) el.current.innerHTML = '<b>' + term + '</b>';   // js/xss
+  }, [term]);
+  return <div ref={el} />;
+}
+
+export function TaintedRedirect() {
+  // SOURCE: document.location.hash  ->  SINK: assignment to window.location.
+  const next = document.location.hash.slice(1);
+  React.useEffect(() => {
+    window.location = next;   // js/client-side-unvalidated-url-redirection
+  }, [next]);
+  return null;
+}
+
+export function TaintedDangerous() {
+  // SOURCE: location.search  ->  SINK: dangerouslySetInnerHTML, one hop apart.
+  const raw = new URLSearchParams(location.search).get('html');
+  return <div dangerouslySetInnerHTML={{ __html: raw }} />;   // js/xss
+}
