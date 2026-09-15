@@ -79,3 +79,24 @@ reported zero **correctly**. Semgrep flagged them on pattern alone, which is why
 
 **If CodeQL still returns zero on rows 14–16, the finding is about CodeQL or its configuration.**
 Until then it was about the fixture, and recording it as a scanner failure would have been wrong.
+
+## Live-run state, 2026-09-15 23:17 UTC — after the fixture was repaired twice
+
+| capability | state | evidence |
+|---|---|---|
+| CodeQL | **DETECTION_PROVEN** | 4 results — `js/xss` ×3, `js/client-side-unvalidated-url-redirection` ×1, the exact queries named above before the run |
+| checkov | **DETECTION_PROVEN** | 16 results |
+| osv-scanner | **DETECTION_PROVEN** | 48 results |
+| Trivy | **DETECTION_PROVEN** | 9 results |
+| Semgrep | **DETECTION_PROVEN** | 8 results |
+| Bandit | **DETECTION_PROVEN** | 5 results |
+| gitleaks | **DETECTION_PROVEN** | 2 results |
+| security gate | **EXECUTED** | blocking behaviour is proven by the negative-path test, not here — this caller is advisory |
+
+**Both zeroes were the fixture, and neither was the scanner.** gitleaks returned zero over a
+published example key it is documented to allowlist. CodeQL returned zero over three XSS sinks fed
+by a React prop, because a prop is not a source any taint engine treats as attacker-controlled.
+Semgrep flagged those on pattern alone, and the disagreement between the two was the signal that
+something was wrong with the corpus rather than with either tool.
+
+Recording either as a failing scanner would have been a false negative about a control that works.
