@@ -5,7 +5,7 @@ not effective, and the row says which.
 
 | # | file | defect | expected to be caught by |
 |---|---|---|---|
-| 1 | `app/config.py` | AWS example key + hardcoded password | gitleaks · detect-secrets · bandit B105 |
+| 1 | `app/config.py` | synthetic AWS key pair + hardcoded password | gitleaks · detect-secrets · bandit B105 |
 | 2 | `app/config.py` | `subprocess(..., shell=True)` on user input | bandit B602 · semgrep · CodeQL taint |
 | 3 | `web/SearchResults.jsx` | `dangerouslySetInnerHTML` from untrusted input | semgrep `p/xss` · CodeQL `js/xss` |
 | 4 | `web/SearchResults.jsx` | `href` taking a user-supplied URL (`javascript:`) | CodeQL `js/unsafe-external-link` family |
@@ -44,3 +44,23 @@ covering them:
   and approval separation stay `UNVALIDATED HUMAN-WORKFLOW PATHS` — not failures, and not passing.
 - **The blocking gate.** This caller runs advisory. That the gate *blocks* is proven by the
   separate negative-path test, not here.
+
+
+---
+
+## Recorded from the first live run, 2026-09-15
+
+| capability | state reached | note |
+|---|---|---|
+| Semgrep | **DETECTION_PROVEN** | 6 results, including the XSS sinks |
+| Bandit | **DETECTION_PROVEN** | 5 results |
+| Trivy (fs) | **DETECTION_PROVEN** | 8 results |
+| osv-scanner | **DETECTION_PROVEN** | 48 results |
+| CodeQL | **EXECUTED** | ran both language packs, uploaded, **0 results** — detection NOT proven |
+| gitleaks | **EXECUTED** | 0 results over a fixture built from an allowlisted example key — **the fixture was wrong**, now repaired |
+| Checkov / Trivy config | **not executed** | applicability was gated by the language selector — a kit defect, now fixed |
+
+**EXECUTED is not DETECTION_PROVEN.** Every one of those jobs was green. Collapsing them into a
+single post-run "effective" state would have recorded two controls as working on the strength of
+them having run — and a green job is the most persuasive possible evidence for a control that did
+nothing.

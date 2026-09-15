@@ -1,11 +1,21 @@
 """PLANTED DEFECTS -- see FIXTURE.md. Expected: bandit B105, B602; semgrep; gitleaks."""
 import subprocess
 
-# DEFECT 1 (bandit B105, hardcoded_password_string).
-# AKIAIOSFODNN7EXAMPLE is AWS's OWN published documentation example key. It authenticates
-# nothing. It is here because a secret scanner that cannot find a key in the shape every
-# scanner claims to detect cannot find one at all.
-AWS_ACCESS_KEY_ID = "AKIAIOSFODNN7EXAMPLE"
+# DEFECT 1 (gitleaks / detect-secrets / bandit B105).
+#
+# THE FIRST VERSION OF THIS FIXTURE WAS BROKEN, AND THE SCANNER WAS RIGHT.
+# It planted AKIAIOSFODNN7EXAMPLE -- AWS's own published documentation example key -- and
+# gitleaks reported ZERO findings. That is correct behaviour: the value is allowlisted
+# precisely because it appears in every tutorial on earth. A fixture built from a string
+# the detector is documented to ignore proves nothing about the detector, and reported a
+# clean scan over a file that was supposed to fail.
+#
+# So the shape is real and the value is not: the prefix is the one AWS assigns, the body is
+# fixed nonsense that satisfies the detector's pattern and matches no allowlist. It grants
+# nothing, has never existed, and cannot be used. That is what a detection fixture requires
+# -- structurally valid, semantically inert, and NOT a published example.
+AWS_ACCESS_KEY_ID = "AKIA4FIXTURE7NOTREAL"          # nosec - synthetic, see FIXTURE.md
+AWS_SECRET_ACCESS_KEY = "wJalrXUtnFEMIK7MDENGbPxRfiCYFIXTUREKEY001"   # nosec
 DB_PASSWORD = "hunter2-not-a-real-password"
 
 
