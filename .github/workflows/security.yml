@@ -42,7 +42,18 @@ jobs:
     #
     # Bumping this is a deliberate edit with a diff, which is what makes a change in results
     # attributable to a change in the kit rather than to the weather.
-    uses: deedeerich/secure-cicd-kit/.github/workflows/reusable-security.yml@v0.1.0
+    # THE PUBLIC MIRROR, not the private source of truth.
+    #
+    # A PUBLIC repository cannot consume a reusable workflow from a PRIVATE one -- GitHub refuses
+    # at resolution, before any job starts, which is why the first attempt failed with zero jobs
+    # and no log. That is a platform rule, not a permission to grant: `access_level: user` on the
+    # private repo lets other PRIVATE repos of the same owner call it, and nothing more.
+    #
+    # So the neutral kit is mirrored to a public repository by scripts/export_for_adoption.py --
+    # fresh tree, no history, overlays and git-ignored paths excluded by structure, and a deny
+    # gate that refuses to write if anything names an organisation. The mirror is generated and
+    # never hand-edited; that is what keeps two copies honest.
+    uses: deedeerich/secure-cicd-kit-public/.github/workflows/reusable-security.yml@v0.1.0
     with:
       language: python,javascript
       enable_iac: true
