@@ -1,0 +1,71 @@
+# Caller for the neutral secure-cicd-kit. NEUTRAL KIT ONLY -- no employer overlay ever lands in
+# a public repository (DEC-2026-09-14-001).
+#
+# WHY THIS REPOSITORY. It is public, so:
+#   - Actions minutes are free, and
+#   - CodeQL runs WITHOUT GitHub Advanced Security.
+#
+# That second point is the reason this exists. On the private repos CodeQL reports UNAVAILABLE,
+# which is a platform state and not a developer one -- and an UNAVAILABLE scanner can never move a
+# capability from CONFIGURED to EFFECTIVE. This is the only place the kit's CodeQL and taint
+# tracking claims can be proven rather than asserted.
+#
+# Being public also means anyone can open a pull request here, so the untrusted-input handling the
+# kit lints for is a live exposure rather than a hypothetical. That is deliberate: it is the
+# honest place to prove that work, not the safe place.
+name: Security
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  schedule:
+    # A reusable workflow cannot schedule itself; the CALLER supplies the schedule. Weekly, not
+    # daily: nothing in a fixture changes, but the vulnerability feed does, which is exactly the
+    # revalidation case -- same artifact, new intelligence, changed assurance state.
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  security:
+    # PINNED TO AN IMMUTABLE TAG, NOT @main.
+    #
+    # This fixture calls `FROM python:latest` a defect two files away, for exactly the reason a
+    # floating ref is one here: the run is not reproducible and the evidence cannot say what
+    # actually executed. A finding produced by "whatever main was that morning" cannot be
+    # re-derived, only re-asserted -- and re-deriving is the whole point of the evidence chain.
+    #
+    # Bumping this is a deliberate edit with a diff, which is what makes a change in results
+    # attributable to a change in the kit rather than to the weather.
+    # THE PUBLIC MIRROR, not the private source of truth.
+    #
+    # A PUBLIC repository cannot consume a reusable workflow from a PRIVATE one -- GitHub refuses
+    # at resolution, before any job starts, which is why the first attempt failed with zero jobs
+    # and no log. That is a platform rule, not a permission to grant: `access_level: user` on the
+    # private repo lets other PRIVATE repos of the same owner call it, and nothing more.
+    #
+    # So the neutral kit is mirrored to a public repository by scripts/export_for_adoption.py --
+    # fresh tree, no history, overlays and git-ignored paths excluded by structure, and a deny
+    # gate that refuses to write if anything names an organisation. The mirror is generated and
+    # never hand-edited; that is what keeps two copies honest.
+    uses: deedeerich/secure-cicd-kit-public/.github/workflows/reusable-security.yml@v0.1.3
+    with:
+      language: python,javascript
+      iac_mode: auto
+      # Deliberately NOT the default. This fixture exists to make dataflow findings appear, and
+      # security-extended trades precision for recall -- which is the right trade when the
+      # question is "does taint tracking run at all", not "is this backlog triageable".
+      codeql_queries: security-extended
+      semgrep_config: p/default p/owasp-top-ten p/xss
+      enable_sbom: true
+      scan_git_history: true
+      # ADVISORY ON PURPOSE, FOR NOW. Every finding here is planted, so a blocking gate would fail
+      # every run and teach everyone to ignore it. The gate gets proven separately, by the
+      # negative-path test that asserts it DOES block -- not by making this repo red forever.
+      advisory_mode: true
+      soft_fail_sast: true
