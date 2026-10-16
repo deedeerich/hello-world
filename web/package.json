@@ -1,0 +1,10 @@
+{
+  "name": "scanner-fixture-web",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Test fixture. Dependencies pinned old on purpose -- see FIXTURE.md.",
+  "dependencies": {
+    "lodash": "4.17.11",
+    "minimist": "1.2.0"
+  }
+}
