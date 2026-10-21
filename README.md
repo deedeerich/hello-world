@@ -1,7 +1,18 @@
 # hello-world
-my first repository
 
-This is just part of the GitHub tutorial so that I learn how the system works and how to commit new files...YAY...
+A public test fixture for a reusable security pipeline
+([secure-cicd-kit-public](https://github.com/deedeerich/secure-cicd-kit-public)), pinned by full
+commit SHA.
+
+- **`.github/workflows/security.yml`** calls the kit's security reusable against this repository
+  and proves each scanner *detects* what it is responsible for, not just that it ran. CodeQL taint
+  tracking can be proven here because the repository is public. The gate runs advisory on purpose.
+- **`.github/workflows/attestation-proof.yml`** builds two images to GHCR, signs one with build
+  provenance and leaves the other unsigned, then runs the kit's attestation verification on both.
+  It passes only when the signed image reads `ATTESTATION_VERIFIED` and the unsigned one is refused
+  as `ATTESTATION_ABSENT`.
+
+The findings in this repository are planted on purpose. See below.
 
 ---
 

@@ -33,7 +33,10 @@ permissions:
 
 jobs:
   security:
-    # PINNED TO AN IMMUTABLE TAG, NOT @main.
+    # PINNED TO A FULL COMMIT SHA, NOT @main AND NOT A TAG.
+    #
+    # A tag can be moved after the fact; a commit SHA cannot. The `# v0.2.0` comment says which
+    # release the SHA is, and is the only part of the line a human needs to read.
     #
     # This fixture calls `FROM python:latest` a defect two files away, for exactly the reason a
     # floating ref is one here: the run is not reproducible and the evidence cannot say what
@@ -53,9 +56,13 @@ jobs:
     # fresh tree, no history, overlays and git-ignored paths excluded by structure, and a deny
     # gate that refuses to write if anything names an organisation. The mirror is generated and
     # never hand-edited; that is what keeps two copies honest.
-    uses: deedeerich/secure-cicd-kit-public/.github/workflows/reusable-security.yml@v0.1.3
+    uses: deedeerich/secure-cicd-kit-public/.github/workflows/reusable-security.yml@2d653a2a14b06049e143f567b25539dc492fd177 # v0.2.0
     with:
-      language: python,javascript
+      # `auto`, the v0.2.0 default. From v0.2.0 a LIST here can only EXCLUDE what discovery finds,
+      # and the narrowing is a recorded weakening (SCOPE_NARROWED). `python,javascript` would now
+      # drop the IaC path -- and rows 6-9 of EXPECTED_FINDINGS.md are Terraform and Dockerfile
+      # defects. This fixture wants every ecosystem it plants scanned, which is what `auto` means.
+      language: auto
       iac_mode: auto
       # Deliberately NOT the default. This fixture exists to make dataflow findings appear, and
       # security-extended trades precision for recall -- which is the right trade when the
@@ -68,4 +75,12 @@ jobs:
       # every run and teach everyone to ignore it. The gate gets proven separately, by the
       # negative-path test that asserts it DOES block -- not by making this repo red forever.
       advisory_mode: true
+      # Explicit since v0.2.0, whose default flipped to false (KDEC-008 OD-7). Same reason as above.
       soft_fail_sast: true
+      # From v0.2.0 both settings above are RECORDED WEAKENINGS (GATE_SOFTENED). Unattributed, the
+      # verdict is DECISION_REQUIRED; attributed, the posture record says who decided and why.
+      # No expiry is set on purpose: the fixture is advisory for as long as its findings are
+      # planted, and the record reports the missing expiry rather than hiding it.
+      weakening_reason: "Scanner acceptance fixture: every finding is planted, so a blocking gate would fail every run. Blocking is proven by the kit's negative-path test."
+      weakening_authority: "fixture owner"
+      weakening_exception_ref: "FIXTURE.md; EXPECTED_FINDINGS.md"
