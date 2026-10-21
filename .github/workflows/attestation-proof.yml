@@ -1,0 +1,195 @@
+# Proof that the kit's attestation verification (V1, the verify-attestation composite) tells a
+# signed image from an unsigned one -- on a live registry, with a live signature, by name.
+#
+# Two images are built and pushed to GHCR in separate jobs:
+#   signed     built, pushed, and its digest signed with SLSA build provenance by THIS workflow
+#   unsigned   built and pushed the same way, never signed -- the control
+#
+# The verify job then runs the kit v0.2.0 composite against both digests with the signer pinned to
+# this workflow, and FAILS unless:
+#   signed   -> ATTESTATION_VERIFIED
+#   unsigned -> ATTESTATION_ABSENT   (refused by name: not NOT_ESTABLISHABLE, not an error)
+#
+# WHY HERE. Attestations are free on a public repository; on a private repository below Enterprise
+# Cloud they cannot be made at all, so V1 there reads ATTESTATION_HELD_BY_PLAN and nothing about
+# verification itself is proven. This public fixture is the place the refusal can be shown.
+#
+# WHY NOT THE KIT'S BUILD REUSABLE. reusable-build-docker.yml (v0.2.0) pushes only to an Azure
+# Container Registry through federated Azure login. This repository has no Azure identity and needs
+# no secrets beyond GITHUB_TOKEN, so it builds to GHCR directly and signs with the same mechanism
+# the kit's attest job uses (GitHub's build-provenance attestation), from a job that does nothing
+# that is not needed for that.
+#
+# No deploys. No secrets beyond GITHUB_TOKEN. Every action pinned by full commit SHA. Permissions
+# are empty at file level and granted per job.
+name: Attestation proof
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - 'kit-attestation-proof/**'
+      - '.github/workflows/attestation-proof.yml'
+  pull_request:
+    paths:
+      - 'kit-attestation-proof/**'
+      - '.github/workflows/attestation-proof.yml'
+
+permissions: {}
+
+concurrency:
+  group: attestation-proof-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  SIGNED_IMAGE: ghcr.io/deedeerich/hello-world-attest-signed
+  UNSIGNED_IMAGE: ghcr.io/deedeerich/hello-world-attest-unsigned
+
+jobs:
+  signed:
+    name: Build, push and sign the signed image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write       # push to GHCR with GITHUB_TOKEN
+      id-token: write       # the OIDC token the signing certificate is issued against
+      attestations: write   # store the attestation in the GitHub attestations API
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build and push
+        id: push
+        env:
+          IMAGE: ${{ env.SIGNED_IMAGE }}
+          TAG: run-${{ github.run_id }}-${{ github.run_attempt }}
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          docker build -t "$IMAGE:$TAG" kit-attestation-proof/signed
+          docker push "$IMAGE:$TAG" | tee push.log
+          digest="$(grep -Eo 'digest: sha256:[0-9a-f]{64}' push.log | tail -n1 | cut -d' ' -f2)"
+          if ! printf '%s' "$digest" | grep -Eq '^sha256:[0-9a-f]{64}$'; then
+            echo "::error title=No digest::docker push reported no manifest digest for $IMAGE:$TAG"
+            exit 1
+          fi
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "signed image: $IMAGE@$digest"
+
+      - name: Attest build provenance (signed by this workflow's identity)
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.SIGNED_IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          # Stored in the GitHub attestations API, which is where V1 reads it -- as the kit's own
+          # attest job does.
+          push-to-registry: false
+
+  unsigned:
+    name: Build and push the unsigned control image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write       # push to GHCR. No id-token, no attestations: this job cannot sign.
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build and push (never attested)
+        id: push
+        env:
+          IMAGE: ${{ env.UNSIGNED_IMAGE }}
+          TAG: run-${{ github.run_id }}-${{ github.run_attempt }}
+          # A fresh digest every run, so no earlier run can have attested this one by accident.
+          RUN_MARK: ${{ github.run_id }}-${{ github.run_attempt }}
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          docker build --build-arg "RUN_MARK=$RUN_MARK" -t "$IMAGE:$TAG" kit-attestation-proof/unsigned
+          docker push "$IMAGE:$TAG" | tee push.log
+          digest="$(grep -Eo 'digest: sha256:[0-9a-f]{64}' push.log | tail -n1 | cut -d' ' -f2)"
+          if ! printf '%s' "$digest" | grep -Eq '^sha256:[0-9a-f]{64}$'; then
+            echo "::error title=No digest::docker push reported no manifest digest for $IMAGE:$TAG"
+            exit 1
+          fi
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "unsigned image: $IMAGE@$digest"
+
+  verify:
+    name: Verify both digests with the kit's V1 composite
+    needs: [signed, unsigned]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      attestations: read    # read the signed provenance
+      packages: read        # resolve the image in GHCR if the package is not public
+    steps:
+      # gh resolves oci:// references through the docker credential store. Read-only token.
+      - name: Registry login (read)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+        run: printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+
+      - name: V1 on the signed digest
+        id: v_signed
+        uses: deedeerich/secure-cicd-kit-public/.github/actions/verify-attestation@2d653a2a14b06049e143f567b25539dc492fd177 # v0.2.0
+        with:
+          image-digest: ${{ needs.signed.outputs.digest }}
+          subject-name: ${{ env.SIGNED_IMAGE }}
+          repository: ${{ github.repository }}
+          signer-workflow: ${{ github.repository }}/.github/workflows/attestation-proof.yml
+          rung: run
+
+      - name: V1 on the unsigned digest
+        id: v_unsigned
+        uses: deedeerich/secure-cicd-kit-public/.github/actions/verify-attestation@2d653a2a14b06049e143f567b25539dc492fd177 # v0.2.0
+        with:
+          image-digest: ${{ needs.unsigned.outputs.digest }}
+          subject-name: ${{ env.UNSIGNED_IMAGE }}
+          repository: ${{ github.repository }}
+          signer-workflow: ${{ github.repository }}/.github/workflows/attestation-proof.yml
+          rung: run
+
+      - name: Assert signed VERIFIED and unsigned ABSENT
+        env:
+          S_OUT: ${{ steps.v_signed.outputs.outcome }}
+          S_ROUTE: ${{ steps.v_signed.outputs.routing_result }}
+          U_OUT: ${{ steps.v_unsigned.outputs.outcome }}
+          U_ROUTE: ${{ steps.v_unsigned.outputs.routing_result }}
+          S_DIGEST: ${{ needs.signed.outputs.digest }}
+          U_DIGEST: ${{ needs.unsigned.outputs.digest }}
+        run: |
+          set -euo pipefail
+          fail=0
+          s_res=PASS; u_res=PASS
+          [ "$S_OUT" = ATTESTATION_VERIFIED ] || { s_res=FAIL; fail=1; }
+          [ "$U_OUT" = ATTESTATION_ABSENT ] || { u_res=FAIL; fail=1; }
+          {
+            echo "### Attestation proof: expected vs observed"
+            echo ""
+            echo "| image | digest | expected | observed | routing | result |"
+            echo "|---|---|---|---|---|---|"
+            echo "| signed | \`$S_DIGEST\` | ATTESTATION_VERIFIED | **${S_OUT:-<empty>}** | \`${S_ROUTE:-<empty>}\` | $s_res |"
+            echo "| unsigned | \`$U_DIGEST\` | ATTESTATION_ABSENT | **${U_OUT:-<empty>}** | \`${U_ROUTE:-<empty>}\` | $u_res |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "signed:   $S_OUT -> $S_ROUTE ($s_res)"
+          echo "unsigned: $U_OUT -> $U_ROUTE ($u_res)"
+          if [ "$fail" -ne 0 ]; then
+            echo "::error title=Attestation proof failed::signed=$S_OUT (want ATTESTATION_VERIFIED), unsigned=$U_OUT (want ATTESTATION_ABSENT)"
+            exit 1
+          fi
