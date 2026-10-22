@@ -56,7 +56,7 @@ jobs:
     # fresh tree, no history, overlays and git-ignored paths excluded by structure, and a deny
     # gate that refuses to write if anything names an organisation. The mirror is generated and
     # never hand-edited; that is what keeps two copies honest.
-    uses: deedeerich/secure-cicd-kit-public/.github/workflows/reusable-security.yml@fcff08a03edde154582e409d18f44f2927b1df5a # Release 3 candidate (public draft PR #10)
+    uses: deedeerich/secure-cicd-kit-public/.github/workflows/reusable-security.yml@bcf96485c4487fe271920e2939338aa50e812423 # Release 3 candidate (public draft PR #10)
     with:
       # `auto`, the v0.2.0 default. From v0.2.0 a LIST here can only EXCLUDE what discovery finds,
       # and the narrowing is a recorded weakening (SCOPE_NARROWED). `python,javascript` would now
