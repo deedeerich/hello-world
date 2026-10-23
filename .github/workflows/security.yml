@@ -35,7 +35,7 @@ jobs:
   security:
     # PINNED TO A FULL COMMIT SHA, NOT @main AND NOT A TAG.
     #
-    # A tag can be moved after the fact; a commit SHA cannot. The `# v0.2.0` comment says which
+    # A tag can be moved after the fact; a commit SHA cannot. The `# Release 3 candidate (public draft PR #10)` comment says which
     # release the SHA is, and is the only part of the line a human needs to read.
     #
     # This fixture calls `FROM python:latest` a defect two files away, for exactly the reason a
@@ -56,7 +56,7 @@ jobs:
     # fresh tree, no history, overlays and git-ignored paths excluded by structure, and a deny
     # gate that refuses to write if anything names an organisation. The mirror is generated and
     # never hand-edited; that is what keeps two copies honest.
-    uses: deedeerich/secure-cicd-kit-public/.github/workflows/reusable-security.yml@2d653a2a14b06049e143f567b25539dc492fd177 # v0.2.0
+    uses: deedeerich/secure-cicd-kit-public/.github/workflows/reusable-security.yml@faaddab9515d5da535b4af5ab5116da9938f5539 # Release 3 candidate (public draft PR #10)
     with:
       # `auto`, the v0.2.0 default. From v0.2.0 a LIST here can only EXCLUDE what discovery finds,
       # and the narrowing is a recorded weakening (SCOPE_NARROWED). `python,javascript` would now
