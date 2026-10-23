@@ -147,7 +147,7 @@ jobs:
 
       - name: V1 on the signed digest
         id: v_signed
-        uses: deedeerich/secure-cicd-kit-public/.github/actions/verify-attestation@2ae7e2510f7b2a3f1ae21a39f14dd77b12484676 # Release 3 candidate (public draft PR #10)
+        uses: deedeerich/secure-cicd-kit-public/.github/actions/verify-attestation@f0b138d6c74503ade717ab4e202fbd7a0e903f20 # Release 3 candidate (public draft PR #10)
         with:
           image-digest: ${{ needs.signed.outputs.digest }}
           subject-name: ${{ env.SIGNED_IMAGE }}
@@ -157,7 +157,7 @@ jobs:
 
       - name: V1 on the unsigned digest
         id: v_unsigned
-        uses: deedeerich/secure-cicd-kit-public/.github/actions/verify-attestation@2ae7e2510f7b2a3f1ae21a39f14dd77b12484676 # Release 3 candidate (public draft PR #10)
+        uses: deedeerich/secure-cicd-kit-public/.github/actions/verify-attestation@f0b138d6c74503ade717ab4e202fbd7a0e903f20 # Release 3 candidate (public draft PR #10)
         with:
           image-digest: ${{ needs.unsigned.outputs.digest }}
           subject-name: ${{ env.UNSIGNED_IMAGE }}
