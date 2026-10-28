@@ -56,7 +56,7 @@ jobs:
     # fresh tree, no history, overlays and git-ignored paths excluded by structure, and a deny
     # gate that refuses to write if anything names an organisation. The mirror is generated and
     # never hand-edited; that is what keeps two copies honest.
-    uses: deedeerich/secure-cicd-kit-public/.github/workflows/reusable-security.yml@faaddab9515d5da535b4af5ab5116da9938f5539 # Release 3 candidate (public draft PR #10)
+    uses: deedeerich/secure-cicd-kit-public/.github/workflows/reusable-security.yml@a7e311826da68061d0d5c4eb9910d98eafa57cd4 # cost measurement BEFORE: fecc3a5 export + iac fixture (docs/operations/COST_MEASUREMENT.md)
     with:
       # `auto`, the v0.2.0 default. From v0.2.0 a LIST here can only EXCLUDE what discovery finds,
       # and the narrowing is a recorded weakening (SCOPE_NARROWED). `python,javascript` would now
