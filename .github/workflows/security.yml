@@ -1,86 +1,50 @@
-# Caller for the neutral secure-cicd-kit. NEUTRAL KIT ONLY -- no employer overlay ever lands in
-# a public repository (DEC-2026-09-14-001).
+# Starter: drop this into a calling repo at .github/workflows/security.yml
+# Replace YOUR_ORG and pin the kit by COMMIT SHA (a branch or moving tag means the verdict came from
+# code nobody chose).
 #
-# WHY THIS REPOSITORY. It is public, so:
-#   - Actions minutes are free, and
-#   - CodeQL runs WITHOUT GitHub Advanced Security.
-#
-# That second point is the reason this exists. On the private repos CodeQL reports UNAVAILABLE,
-# which is a platform state and not a developer one -- and an UNAVAILABLE scanner can never move a
-# capability from CONFIGURED to EFFECTIVE. This is the only place the kit's CodeQL and taint
-# tracking claims can be proven rather than asserted.
-#
-# Being public also means anyone can open a pull request here, so the untrusted-input handling the
-# kit lints for is a live exposure rather than a hypothetical. That is deliberate: it is the
-# honest place to prove that work, not the safe place.
+# ONE SECURITY CALLER PER REPOSITORY (owner ruling 2026-10-27, KDEC-033). templates/build-deploy.yml
+# REPLACES this file: its `security` job calls the same reusable on the same push / pull_request /
+# dispatch triggers under the same job id, so the required check is still `security / Security gate`.
+# Installing both ran the whole suite twice per event (W5). When you wire a deploy, DELETE this file in
+# the same change. tests/prove_security_caller_triggers.py proves the replacement keeps every trigger.
 name: Security
 
+# LONG-LIVED BRANCHES (lane L-LEAK, docs/adoption/LEAK_GATES.md): a secret pushed to `dev` or a release
+# branch is scanned only when a PR from it targets main. Recommended: list every long-lived branch in
+# BOTH triggers, e.g. `branches: [main, dev]` -- one more full scan per push to it is the cost.
 on:
   push:
-    branches: [master, main]
+    branches: [conc-main-r8]        # recommended: [main, dev, <other long-lived branches>]
   pull_request:
-  schedule:
-    # A reusable workflow cannot schedule itself; the CALLER supplies the schedule. Weekly, not
-    # daily: nothing in a fixture changes, but the vulnerability feed does, which is exactly the
-    # revalidation case -- same artifact, new intelligence, changed assurance state.
-    - cron: '17 6 * * 1'
+    branches: [conc-main-r8]        # recommended: the same list
   workflow_dispatch:
 
+# A SUPERSEDED PULL-REQUEST RUN IS CANCELLED; NOTHING ELSE IS (cost redesign step 2, KDEC-033). Only
+# pull_request runs share a group (one per PR), so a new push to the PR cancels the run it replaced. Every
+# other event is grouped by its own run id: a push to main is never cancelled and never queued.
+# tests/prove_security_caller_triggers.py holds both expressions.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Everything the kit's jobs request must be granted here, or GitHub refuses the whole run before any
+# job starts (startup_failure). tests/check_caller_permissions.py holds this template to that.
 permissions:
   contents: read
   security-events: write
-  actions: read
+  actions: read          # the CodeQL job reads workflow metadata on private repositories
 
 jobs:
   security:
-    # PINNED TO A FULL COMMIT SHA, NOT @main AND NOT A TAG.
-    #
-    # A tag can be moved after the fact; a commit SHA cannot. The `# v0.2.0` comment says which
-    # release the SHA is, and is the only part of the line a human needs to read.
-    #
-    # This fixture calls `FROM python:latest` a defect two files away, for exactly the reason a
-    # floating ref is one here: the run is not reproducible and the evidence cannot say what
-    # actually executed. A finding produced by "whatever main was that morning" cannot be
-    # re-derived, only re-asserted -- and re-deriving is the whole point of the evidence chain.
-    #
-    # Bumping this is a deliberate edit with a diff, which is what makes a change in results
-    # attributable to a change in the kit rather than to the weather.
-    # THE PUBLIC MIRROR, not the private source of truth.
-    #
-    # A PUBLIC repository cannot consume a reusable workflow from a PRIVATE one -- GitHub refuses
-    # at resolution, before any job starts, which is why the first attempt failed with zero jobs
-    # and no log. That is a platform rule, not a permission to grant: `access_level: user` on the
-    # private repo lets other PRIVATE repos of the same owner call it, and nothing more.
-    #
-    # So the neutral kit is mirrored to a public repository by scripts/export_for_adoption.py --
-    # fresh tree, no history, overlays and git-ignored paths excluded by structure, and a deny
-    # gate that refuses to write if anything names an organisation. The mirror is generated and
-    # never hand-edited; that is what keeps two copies honest.
-    uses: deedeerich/secure-cicd-kit-public/.github/workflows/reusable-security.yml@2d653a2a14b06049e143f567b25539dc492fd177 # v0.2.0
+    uses: deedeerich/secure-cicd-kit-public/.github/workflows/reusable-security.yml@4d7dcc5acf7c2f11cc3b31ef9f9fd8420bf97a7f   # pin a commit SHA
     with:
-      # `auto`, the v0.2.0 default. From v0.2.0 a LIST here can only EXCLUDE what discovery finds,
-      # and the narrowing is a recorded weakening (SCOPE_NARROWED). `python,javascript` would now
-      # drop the IaC path -- and rows 6-9 of EXPECTED_FINDINGS.md are Terraform and Dockerfile
-      # defects. This fixture wants every ecosystem it plants scanned, which is what `auto` means.
-      language: auto
-      iac_mode: auto
-      # Deliberately NOT the default. This fixture exists to make dataflow findings appear, and
-      # security-extended trades precision for recall -- which is the right trade when the
-      # question is "does taint tracking run at all", not "is this backlog triageable".
-      codeql_queries: security-extended
-      semgrep_config: p/default p/owasp-top-ten p/xss
-      enable_sbom: true
-      scan_git_history: true
-      # ADVISORY ON PURPOSE, FOR NOW. Every finding here is planted, so a blocking gate would fail
-      # every run and teach everyone to ignore it. The gate gets proven separately, by the
-      # negative-path test that asserts it DOES block -- not by making this repo red forever.
-      advisory_mode: true
-      # Explicit since v0.2.0, whose default flipped to false (KDEC-008 OD-7). Same reason as above.
-      soft_fail_sast: true
-      # From v0.2.0 both settings above are RECORDED WEAKENINGS (GATE_SOFTENED). Unattributed, the
-      # verdict is DECISION_REQUIRED; attributed, the posture record says who decided and why.
-      # No expiry is set on purpose: the fixture is advisory for as long as its findings are
-      # planted, and the record reports the missing expiry rather than hiding it.
-      weakening_reason: "Scanner acceptance fixture: every finding is planted, so a blocking gate would fail every run. Blocking is proven by the kit's negative-path test."
-      weakening_authority: "fixture owner"
-      weakening_exception_ref: "FIXTURE.md; EXPECTED_FINDINGS.md"
+      environment: prod       # the baseline-ledger environment this run is for
+      # The defaults ARE the baseline (soft_fail_sast: false, language: auto): change nothing to get
+      # PROCEED on a clean run. Softening any control is a weakening -- attribute it or it routes
+      # DECISION_REQUIRED:
+      # soft_fail_sast: true
+      # weakening_reason: "first adoption on an inherited backlog"
+      # weakening_authority: "security lead"
+      # weakening_expires: "2026-12-31"
+    secrets:
+      SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}   # optional; remove if unused
